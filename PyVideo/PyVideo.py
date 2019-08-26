@@ -4,10 +4,23 @@ import matplotlib.pyplot as plt
 
 
 class DataReader:
-    self.szBuffer = 16384
+    szBuffer = 16384
     def __init__ (self, filename):
         self.fp = open(filename, 'rb')
-        self.buf = self.fp.read(Datareader.szBuffer)
+        self.buf = self.fp.read(DataReader.szBuffer)
+        self.pos = 0
+        pass
+
+    def GetBytes(self, n):
+        ret = self.buf[self.pos:(self.pos+n)]
+        self.pos += n
+        print(self.pos, ret)
+        return ret
+    
+    def Int32(self):
+        ret = self.GetBytes(4)
+        return int.from_bytes(ret, 'little')
+
 
 
 class VideoContainer:
@@ -20,14 +33,39 @@ class VideoContainer:
             self.open_AVI()
         pass
 
+    def Parse_unit(self, name = ''):
+        if name == '':
+            name = self.dr.GetBytes(4)
+        if type(name) == bytes:
+            name = name.decode('utf-8')
+        try:
+            eval('self.Parse_' + name + '()')
+        except Exception as e:
+            print(f'Exception occurred with parse_{name} : {e}')
+
     def open_AVI(self):
         self.dr = DataReader(self.filename)
+        self.Parse_unit()
         pass
+
+    def Parse_RIFF(self):
+        print('parse RIFF unit - size: ', self.dr.Int32())
+        self.Parse_unit()
+        pass
+
+    def Parse_AVI(self):
+        self.Parse_unit()
+        pass
+
+    def Parse_LIST(self):
+        pass
+
 
 if __name__ == '__main__':
     print("Main function")
     # test avi
     vc = VideoContainer()
     vc.open('test.avi')
+    pass
 
     # test mkv
