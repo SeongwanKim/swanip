@@ -58,8 +58,23 @@ class VideoContainer:
         pass
 
     def Parse_LIST(self):
+        sz = self.dr.Int32()
+        print(sz)
+        self.Parse_unit()
         pass
 
+    def Parse_hdrl(self):
+        self.Parse_unit()
+        pass
+
+    def Parse_avih(self):
+        parm1 = self.dr.Int32()
+        parm2 = self.dr.Int32()
+        parm3 = self.dr.Int32()
+        parm4 = self.dr.Int32()
+
+        print('---')
+        pass
 
 if __name__ == '__main__':
     print("Main function")
