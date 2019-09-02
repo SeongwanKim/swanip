@@ -72,18 +72,16 @@ class VideoContainer:
         pass
 
     def parse_unit(self, name = ''):
-        list_names = ['LIST', 'RIFF', 'hdrl']
+        empty_names = ['AVI ', 'hdrl', 'strl']
         if name == '':
             name = self.dr.GetBytes(4)
         if type(name) == bytes:
             name = name.decode('utf-8')
+        if name in empty_names:
+            sz = self.parse_unit()
+            return sz
         sz = self.dr.Int32()
         tsz = sz
-        if name in list_names:
-            #parse list
-            print('fourcc', end='')
-            fourcc = self.dr.GetBytes(4)
-            pass
         psd = self.parse_fourcc(name, sz)
         tsz -= psd
         print(f'parsed {name}, parsed: {psd}, remain unit: {tsz}, all: {sz}')
@@ -92,16 +90,36 @@ class VideoContainer:
         return sz
 
     def fourcc_RIFF(self, sz):
-        return self.parse_unit()
+        tsz = sz
+        while (tsz > 0):
+            psd = self.parse_unit()
+            tsz -= psd
+            print(f'parsing RIFF, parsed: {psd}, remain unit: {tsz}, all: {sz}')
+        return sz
 
     def fourcc_LIST(self, sz):
-        return self.parse_unit()
+        tsz = sz
+        while (tsz > 0):
+            psd = self.parse_unit()
+            tsz -= psd
+            print(f'parsed LIST, parsed: {psd}, remain unit: {tsz}, all: {sz}')
+        return sz
 
     def fourcc_AVI(self, sz):
-        return self.parse_unit()
+        tsz = sz
+        while (tsz > 0):
+            psd = self.parse_unit()
+            tsz -= psd
+            print(f'parsed AVI, parsed: {psd}, remain unit: {tsz}, all: {sz}')
+        return sz
 
     def fourcc_hdrl(self, sz):
-        return self.parse_unit()
+        tsz = sz
+        while (tsz > 0):
+            psd = self.parse_unit()
+            tsz -= psd
+            print(f'parsed hdrl, parsed: {psd}, remain unit: {tsz}, all: {sz}')
+        return sz
 
     def fourcc_strn(self, sz):
         self.dr.szHelper()
@@ -170,6 +188,9 @@ class VideoContainer:
             self.stream_headers[-1]['YPelsPerMeter'] = self.dr.LONG()
             self.stream_headers[-1]['ClrUsed'] = self.dr.DWORD()
             self.stream_headers[-1]['ClrImportant'] = self.dr.DWORD()
+            if sz > 40:
+                print(f'parse remain data: {sz}')
+                self.stream_headers[-1]['Remains'] = self.dr.GetBytes(sz - 40)
             pass
         elif type == 'auds': # https://docs.microsoft.com/en-us/previous-versions/dd757713(v%3dvs.85)
             self.stream_headers[-1]['FormatTag'] = self.dr.WORD()
@@ -179,6 +200,9 @@ class VideoContainer:
             self.stream_headers[-1]['BlockAlign'] = self.dr.WORD()
             self.stream_headers[-1]['BitsPerSample'] = self.dr.WORD()
             self.stream_headers[-1]['bSize'] = self.dr.WORD()
+            if sz > 18:
+                print(f'parse remain data: {sz}')
+                self.stream_headers[-1]['Remains'] = self.dr.GetBytes(sz - 18)
             pass
         else:
             print(f'unknown type stream format {type}, {sz}')
