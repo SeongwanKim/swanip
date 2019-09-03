@@ -4,13 +4,14 @@ import matplotlib.pyplot as plt
 
 
 class DataReader:
-    szBuffer = 16384
+    szBuffer = 32768
     log = True
     def __init__ (self, filename):
         self.fp = open(filename, 'rb')
         self.buf = self.fp.read(DataReader.szBuffer)
         self.pos = 0
         self.cur_unit = 0
+        self.prev_pos = 0
         pass
 
     def szHelper(self):
@@ -19,7 +20,14 @@ class DataReader:
         return sz
 
     def GetBytes(self, n):
-        ret = self.buf[self.pos:(self.pos+n)]
+        if n > DataReader.szBuffer:
+            print('ERROR. buffersize is too small.', n, DataReader.szBuffer)
+            DataReader.szBuffer = n * 2;
+        if (self.pos + n - self.prev_pos) > len(self.buf):
+            self.prev_pos = self.pos
+            self.buf = self.buf[pos:] + self.fp.read(DataReader.szBuffer)
+        tpos = self.pos - self.prev_pos
+        ret = self.buf[tpos:(tpos+n)]
         self.pos += n
         if DataReader.log:
             print(self.pos, ret)
@@ -63,6 +71,8 @@ class DataReader:
 class VideoContainer:
     def __init__(self):
         self.stream_headers = []
+        self.stream_info = {}
+        self.avih = {}
         pass
 
     def open(self, filename):
@@ -72,7 +82,7 @@ class VideoContainer:
         pass
 
     def parse_unit(self, name = ''):
-        empty_names = ['AVI ', 'hdrl', 'strl']
+        empty_names = ['AVI ', 'hdrl', 'strl', 'INFO']
         if name == '':
             name = self.dr.GetBytes(4)
         if type(name) == bytes:
@@ -85,8 +95,13 @@ class VideoContainer:
         psd = self.parse_fourcc(name, sz)
         tsz -= psd
         print(f'parsed {name}, parsed: {psd}, remain unit: {tsz}, all: {sz}')
-        while (tsz > 0):
-            self.parse_unit()
+        #while (tsz > 0):
+            #self.parse_unit()
+        return sz - tsz
+
+    def fourcc_ISFT(self, sz):
+        print(f'parsing ISFT, all: {sz}')
+        self.stream_info['ISFT'] = self.dr.GetBytes(sz)
         return sz
 
     def fourcc_RIFF(self, sz):
@@ -103,7 +118,7 @@ class VideoContainer:
             psd = self.parse_unit()
             tsz -= psd
             print(f'parsed LIST, parsed: {psd}, remain unit: {tsz}, all: {sz}')
-        return sz
+        return sz - tsz
 
     def fourcc_AVI(self, sz):
         tsz = sz
@@ -123,20 +138,31 @@ class VideoContainer:
 
     def fourcc_strn(self, sz):
         self.dr.szHelper()
-        sz = (sz + 15 ) & 0xFFFFFFF0
+        sz = (sz + 1 ) & 0xFFFFFFFE
         self.stream_headers[-1]['name'] = self.dr.GetBytes(sz).decode()
         return self.dr.szHelper()
 
     def fourcc_JUNK(self,sz):
         self.dr.szHelper()
+        sz = (sz + 1 ) & 0xFFFFFFFE
         #sz = (sz + 15 ) & 0xFFFFFFF0
         self.stream_headers[-1]['junk'] = self.dr.GetBytes(sz)
         return self.dr.szHelper()
 
+    def fourcc_movi(self,sz):
+        #TODO: fill it. 
+        # refer to 
+        self.dr.szHelper()
+        tag = sz.to_bytes(4,'little').decode()
+        print('movi', tag, int(tag[:2]), tag[2:])
+
+        real_size = self.dr.Int32()
+        real_size = (real_size + 1 ) & 0xFFFFFFFE
+        buffer = self.dr.GetBytes(real_size)
+        return self.dr.szHelper()
 
     def fourcc_avih(self, sz): # avi header 
         self.dr.szHelper()
-        self.avih = {}
         self.avih['msec_per_frame'] = self.dr.DWORD()
         self.avih['Bytes_per_sec'] = self.dr.DWORD()
         self.avih['padd_gran'] = self.dr.DWORD()
