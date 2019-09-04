@@ -23,14 +23,15 @@ class DataReader:
         if n > DataReader.szBuffer:
             print('ERROR. buffersize is too small.', n, DataReader.szBuffer)
             DataReader.szBuffer = n * 2;
+        tpos = self.pos - self.prev_pos
         if (self.pos + n - self.prev_pos) > len(self.buf):
             self.prev_pos = self.pos
-            self.buf = self.buf[pos:] + self.fp.read(DataReader.szBuffer)
-        tpos = self.pos - self.prev_pos
+            buf2 = self.buf[tpos:] + self.fp.read(DataReader.szBuffer)
+            self.buf = buf2
         ret = self.buf[tpos:(tpos+n)]
         self.pos += n
         if DataReader.log:
-            print(self.pos, ret)
+            print(hex(self.pos), ret[:8])
         return ret
     
     def Int32(self):
@@ -114,9 +115,11 @@ class VideoContainer:
 
     def fourcc_LIST(self, sz):
         tsz = sz
+        self.latest_tsz = tsz
         while (tsz > 0):
             psd = self.parse_unit()
             tsz -= psd
+            self.latest_tsz = tsz
             print(f'parsed LIST, parsed: {psd}, remain unit: {tsz}, all: {sz}')
         return sz - tsz
 
@@ -152,14 +155,39 @@ class VideoContainer:
     def fourcc_movi(self,sz):
         #TODO: fill it. 
         # refer to 
-        self.dr.szHelper()
-        tag = sz.to_bytes(4,'little').decode()
-        print('movi', tag, int(tag[:2]), tag[2:])
+        tsz = self.latest_tsz
+        psd = tsz
+        first = True
+        while psd > 0:
+            self.dr.szHelper()
+            if first:
+                tag = sz.to_bytes(4,'little').decode()
+                first = False
+            else:
+                tag = self.dr.fourcc()
+            print('movi', tag, int(tag[:2]), tag[2:], psd)
 
-        real_size = self.dr.Int32()
-        real_size = (real_size + 1 ) & 0xFFFFFFFE
-        buffer = self.dr.GetBytes(real_size)
-        return self.dr.szHelper()
+            if tag[2:] == 'wb': # audio
+                headers = self.stream_headers[self.audio_idx]
+                real_size = headers['SampleSize']
+                real_size = self.dr.Int32()
+                real_size = (real_size + 1 ) & 0xFFFFFFFE
+                buffer = self.dr.GetBytes(real_size)
+                psd -= self.dr.szHelper()
+                pass
+            elif tag[2:] == 'dc': # video 
+                real_size = self.dr.Int32()
+                real_size = (real_size + 1 ) & 0xFFFFFFFE
+                buffer = self.dr.GetBytes(real_size)
+                psd -= self.dr.szHelper()
+                pass
+            else: 
+                print('Unknown type???:')
+        return tsz - psd
+
+
+
+
 
     def fourcc_avih(self, sz): # avi header 
         self.dr.szHelper()
@@ -196,6 +224,10 @@ class VideoContainer:
         strh['Quality'] = self.dr.DWORD()
         strh['SampleSize'] = self.dr.DWORD()
         strh['rectFrame'] = self.dr.RECT()
+        if strh['fccType'] == 'vids':
+            self.video_idx = len(self.stream_headers)
+        elif strh['fccType'] == 'auds':
+            self.audio_idx = len(self.stream_headers)
         self.stream_headers.append(strh)
         return self.dr.szHelper()
 
