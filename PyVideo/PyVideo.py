@@ -1,6 +1,7 @@
 import numpy as np
 import struct 
 import matplotlib.pyplot as plt
+from VideoCodec import VideoCodec
 
 
 class DataReader:
@@ -74,6 +75,7 @@ class VideoContainer:
         self.stream_headers = []
         self.stream_info = {}
         self.avih = {}
+        self.video_codec = VideoCodec()
         pass
 
     def open(self, filename):
@@ -226,6 +228,7 @@ class VideoContainer:
         strh['rectFrame'] = self.dr.RECT()
         if strh['fccType'] == 'vids':
             self.video_idx = len(self.stream_headers)
+            self.video_codec.SetCodec(strh['fccHandler'])
         elif strh['fccType'] == 'auds':
             self.audio_idx = len(self.stream_headers)
         self.stream_headers.append(strh)
@@ -250,7 +253,7 @@ class VideoContainer:
                 print(f'parse remain data: {sz}')
                 self.stream_headers[-1]['Remains'] = self.dr.GetBytes(sz - 40)
             pass
-        elif type == 'auds': # https://docs.microsoft.com/en-us/previous-versions/dd757713(v%3dvs.85)
+        elif type == 'auds':
             self.stream_headers[-1]['FormatTag'] = self.dr.WORD()
             self.stream_headers[-1]['Channels'] = self.dr.WORD()
             self.stream_headers[-1]['SamplesPerSec'] = self.dr.DWORD()
